@@ -145,32 +145,30 @@ class BatterModel(HOFModel):
         return BatterModel.error_rating(self.catcher)
 
 class HOFBatters(object):
-    def __init__(self, sheet, seasons=None, n_left=None, n_right=None):
+    def __init__(self, sheet, seasons=None):
         key_row = sheet.row(0)
         key_list = [sheet.cell_value(0, col_index) for col_index in xrange(sheet.ncols)]
-
-        self.pichers_left = 1
-        self.pitchers_right = 1
-        if n_left is not None and  n_right is not None:
-            self.pitchers_left = float(n_left)
-            self.pitchers_right = float(n_right)
-        self.n_pitchers = self.pitchers_left + self.pitchers_right
 
         self.batters = []
         for row in xrange(1, sheet.nrows):
             value_list = [sheet.cell_value(row, col_index) for col_index in xrange(sheet.ncols)]
             batter = BatterModel.from_list(key_list, value_list)
-            batter.left_weight = self.pitchers_left/self.n_pitchers
-            batter.right_weight = self.pitchers_right/self.n_pitchers
             self.batters.append(batter)
 
         if seasons is not None and len(seasons):
             self.batters = [b for b in self.batters if b.eligible_season in seasons]
 
-    def initialize(self):
+    def initialize(self, n_left, n_right):
+        self.n_pitchers_left = float(n_left)
+        self.n_pitchers_right = float(n_right)
+        self.n_pitchers = self.n_pitchers_left + self.n_pitchers_right
+
         sum_vs_l_obp = sum_vs_r_obp = 0.0
         sum_vs_l_slg = sum_vs_r_slg = 0.0
         for batter in self.batters:
+            batter.left_weight = self.n_pitchers_left/self.n_pitchers
+            batter.right_weight = self.n_pitchers_right/self.n_pitchers
+
             sum_vs_l_obp += batter.vs_l_obp
             sum_vs_r_obp += batter.vs_r_obp
             sum_vs_l_slg += batter.vs_l_extra_base
@@ -297,7 +295,11 @@ class HOFPitchers(object):
                 average_pitcher.__dict__[key] /= len(all_pitchers)
         return average_pitcher
 
-    def initialize(self):
+    def initialize(self, n_left, n_right):
+        self.n_batters_left = float(n_left)
+        self.n_batters_right = float(n_right)
+        self.n_batters = self.n_batters_left + self.n_batters_right
+
         sum_vs_l_obp = sum_vs_r_obp = 0.0
         sum_vs_l_slg = sum_vs_r_slg = 0.0
         for pitcher in self.pitchers:
@@ -332,9 +334,9 @@ class HOF(object):
         pitcher_sheet = workbook.sheet_by_name('Pitchers - Strat Card Data')
 
         self.hof_pitchers = HOFPitchers(pitcher_sheet, seasons)
-        self.hof_batters = HOFBatters(batter_sheet, ['1'], self.hof_pitchers.n_left, self.hof_pitchers.n_right)
-        self.hof_batters.initialize()
-        self.hof_pitchers.initialize()
+        self.hof_batters = HOFBatters(batter_sheet, seasons)
+        self.hof_batters.initialize(self.hof_pitchers.n_left, self.hof_pitchers.n_right)
+        self.hof_pitchers.initialize(self.hof_batters.n_left, self.hof_batters.n_right)
 
     @property
     def pitchers(self):
