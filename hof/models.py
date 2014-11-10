@@ -219,7 +219,7 @@ class PitcherModel(HOFModel):
             'BATTING CARD' : 'batting_card',
             'BAL' : 'bal',
             'LEFT%' : 'left_pct',
-            'POWER' : 'power_',
+            'POWER' : 'power',
             'vsL All Other' : 'vs_l_all_other',
             'vsL GB - DP' : 'vs_l_gb_dp',
             'vsL Strike Out' : 'vs_l_strike_out',
@@ -279,6 +279,24 @@ class HOFPitchers(object):
         if seasons is not None and len(seasons):
             self.pitchers = [p for p in self.pitchers if p.eligible_season in seasons]
 
+    def _generate_average_pitcher(self, throws):
+        average_pitcher = PitcherModel()
+        average_pitcher.__dict__['id'] = throws
+        average_pitcher.__dict__['name'] = 'Average {}'.format(throws)
+        average_pitcher.__dict__['throws'] = throws
+
+        all_pitchers = [p for p in self.pitchers if p.throws == throws]
+        rep_pitcher = all_pitchers[0]
+        for key in vars(rep_pitcher):
+            if key.startswith("vs_"):
+                for pitcher in all_pitchers:
+                    if key in average_pitcher.__dict__:
+                        average_pitcher.__dict__[key] += pitcher.__dict__[key]
+                    else:
+                        average_pitcher.__dict__[key] = pitcher.__dict__[key]
+                average_pitcher.__dict__[key] /= len(all_pitchers)
+        return average_pitcher
+
     def initialize(self):
         sum_vs_l_obp = sum_vs_r_obp = 0.0
         sum_vs_l_slg = sum_vs_r_slg = 0.0
@@ -295,6 +313,9 @@ class HOFPitchers(object):
         for pitcher in self.pitchers:
             pitcher.vs_l_ops_plus = 100 * ((pitcher.vs_l_obp/self.vs_l_lg_obp) + (pitcher.vs_l_extra_base/self.vs_l_lg_slg) - 1)
             pitcher.vs_r_ops_plus = 100 * ((pitcher.vs_r_obp/self.vs_r_lg_obp) + (pitcher.vs_r_extra_base/self.vs_r_lg_slg) - 1)
+
+        self.average_lefty = self._generate_average_pitcher('L')
+        self.average_righty = self._generate_average_pitcher('R')
 
     @property
     def n_left(self):
@@ -322,3 +343,11 @@ class HOF(object):
     @property
     def batters(self):
         return self.hof_batters.batters
+
+    @property
+    def average_lefty_pitcher(self):
+        return self.hof_pitchers.average_lefty
+
+    @property
+    def average_righty_pitcher(self):
+        return self.hof_pitchers.average_righty

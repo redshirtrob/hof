@@ -12,9 +12,13 @@ def main():
     pitchers = sorted(pitchers, cmp=ops_plus_compare)
     for pitcher in pitchers:
         print pitcher
+    print hof.average_lefty_pitcher
+    print hof.average_righty_pitcher
 
     print "Lefties:  {}".format(hof.hof_pitchers.n_left)
     print "Righties: {}".format(hof.hof_pitchers.n_right)
+
+
 
 if __name__ == '__main__':
     main()

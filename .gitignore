@@ -12,3 +12,6 @@
 # Data file
 *.xls*
 plan.txt
+
+# Python files
+*.pyc
