@@ -10,5 +10,5 @@
 .#*
 
 # Data file
-*.xls
+*.xls*
 plan.txt
