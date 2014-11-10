@@ -112,11 +112,21 @@ class BatterModel(HOFModel):
         }
 
     def __repr__(self):
-        return '{}: {}: {}: {}'.format(self.eligible_season, self.name, self.pos_to_use, self.ops_plus)
+        return '{}: {}: {}: {}: {}'.format(self.eligible_season, self.bats, self.name, self.pos_to_use, self.ops_plus)
 
     @property
     def ops_plus(self):
         return int(self.left_weight*self.vs_l_ops_plus + self.right_weight*self.vs_r_ops_plus)
+
+    @property
+    def vs_l_weak(self):
+        l, r = self.power_lr.split('/')
+        return l == 'W'
+
+    @property
+    def vs_r_weak(self):
+        l, r = self.power_lr.split('/')
+        return r == 'W'
 
     def is_rated_for_position(self, position=0):
         if position == 2:
@@ -144,6 +154,62 @@ class BatterModel(HOFModel):
     def catcher_error_rating(self):
         return BatterModel.error_rating(self.catcher)
 
+    def vs_l_obp_adj(self, lefty):
+        # Batter roll
+        batter_vs_l_obp = self.vs_l_obp
+
+        # Pitcher roll
+        if self.bats == 'L': # Lefty vs. Lefty
+            pitcher_vs_l_obp = lefty.vs_l_obp
+        elif self.bats == 'R' or self.bats == 'S': # Righty vs. Lefty
+            pitcher_vs_l_obp = lefty.vs_r_obp
+
+        return (batter_vs_l_obp + pitcher_vs_l_obp) / 2.0
+
+    def vs_r_obp_adj(self, righty):
+        # Batter roll
+        batter_vs_r_obp = self.vs_r_obp
+
+        # Pitcher roll
+        if self.bats == 'L' or self.bats == 'S': # Lefty vs. Righty
+            pitcher_vs_r_obp = righty.vs_l_obp
+        elif self.bats == 'R': # Righty vs. Righty
+            pitcher_vs_r_obp = righty.vs_r_obp
+
+        return (batter_vs_r_obp + pitcher_vs_r_obp) / 2.0
+
+    def vs_l_extra_base_adj(self, lefty):
+        # Batter roll
+        batter_vs_l_extra_base = self.vs_l_extra_base
+
+        # Pitcher roll
+        if self.bats == 'L': # Lefty vs. Lefty
+            pitcher_vs_l_extra_base = lefty.vs_l_extra_base
+            if self.vs_l_weak:
+                pitcher_vs_l_extra_base -= lefty.vs_l_home_run
+        elif self.bats == 'R' or self.bats == 'S': # Righty vs. Lefty
+            pitcher_vs_l_extra_base = lefty.vs_r_extra_base
+            if self.vs_l_weak:
+                pitcher_vs_l_extra_base -= lefty.vs_r_home_run
+
+        return (batter_vs_l_extra_base + pitcher_vs_l_extra_base) / 2.0
+
+    def vs_r_extra_base_adj(self, righty):
+        # Batter roll
+        batter_vs_r_extra_base = self.vs_r_extra_base
+
+        # Pitcher roll
+        if self.bats == 'L' or self.bats == 'S': # Lefty vs. Righty
+            pitcher_vs_r_extra_base = righty.vs_l_extra_base
+            if self.vs_r_weak:
+                pitcher_vs_r_extra_base -= righty.vs_l_home_run
+        elif self.bats == 'R': # Righty vs. Righty
+            pitcher_vs_r_extra_base = righty.vs_r_extra_base
+            if self.vs_r_weak:
+                pitcher_vs_r_extra_base -= righty.vs_r_home_run
+
+        return (batter_vs_r_extra_base + pitcher_vs_r_extra_base) / 2.0
+
 class HOFBatters(object):
     def __init__(self, sheet, seasons=None):
         key_row = sheet.row(0)
@@ -158,10 +224,13 @@ class HOFBatters(object):
         if seasons is not None and len(seasons):
             self.batters = [b for b in self.batters if b.eligible_season in seasons]
 
-    def initialize(self, n_left, n_right):
+    def initialize(self, n_left, n_right, average_lefty, average_righty):
         self.n_pitchers_left = float(n_left)
         self.n_pitchers_right = float(n_right)
         self.n_pitchers = self.n_pitchers_left + self.n_pitchers_right
+
+        self.average_pitcher_left = average_lefty
+        self.average_pitcher_right = average_righty
 
         sum_vs_l_obp = sum_vs_r_obp = 0.0
         sum_vs_l_slg = sum_vs_r_slg = 0.0
@@ -169,18 +238,25 @@ class HOFBatters(object):
             batter.left_weight = self.n_pitchers_left/self.n_pitchers
             batter.right_weight = self.n_pitchers_right/self.n_pitchers
 
-            sum_vs_l_obp += batter.vs_l_obp
-            sum_vs_r_obp += batter.vs_r_obp
-            sum_vs_l_slg += batter.vs_l_extra_base
-            sum_vs_r_slg += batter.vs_r_extra_base
+            sum_vs_l_obp += batter.vs_l_obp_adj(self.average_pitcher_left)
+            sum_vs_r_obp += batter.vs_r_obp_adj(self.average_pitcher_right)
+            sum_vs_l_slg += batter.vs_l_extra_base_adj(self.average_pitcher_left)
+            sum_vs_r_slg += batter.vs_r_extra_base_adj(self.average_pitcher_right)
+
         self.vs_l_lg_obp = sum_vs_l_obp / len(self.batters)
         self.vs_r_lg_obp = sum_vs_r_obp / len(self.batters)
         self.vs_l_lg_slg = sum_vs_l_slg / len(self.batters)
         self.vs_r_lg_slg = sum_vs_r_slg / len(self.batters)
 
         for batter in self.batters:
-            batter.vs_l_ops_plus = 100 * ((batter.vs_l_obp/self.vs_l_lg_obp) + (batter.vs_l_extra_base/self.vs_l_lg_slg) - 1)
-            batter.vs_r_ops_plus = 100 * ((batter.vs_r_obp/self.vs_r_lg_obp) + (batter.vs_r_extra_base/self.vs_r_lg_slg) - 1)
+            vs_l_obp = batter.vs_l_obp_adj(self.average_pitcher_left)
+            vs_l_extra_base = batter.vs_l_extra_base_adj(self.average_pitcher_left)
+            batter.vs_l_ops_plus = 100 * ((vs_l_obp/self.vs_l_lg_obp) + (vs_l_extra_base/self.vs_l_lg_slg) - 1)
+
+            # Batter roll
+            vs_r_obp = batter.vs_r_obp_adj(self.average_pitcher_right)
+            vs_r_extra_base = batter.vs_r_extra_base_adj(self.average_pitcher_right)
+            batter.vs_r_ops_plus = 100 * ((vs_r_obp/self.vs_r_lg_obp) + (vs_r_extra_base/self.vs_r_lg_slg) - 1)
 
     @property
     def n_left(self):
@@ -335,8 +411,9 @@ class HOF(object):
 
         self.hof_pitchers = HOFPitchers(pitcher_sheet, seasons)
         self.hof_batters = HOFBatters(batter_sheet, seasons)
-        self.hof_batters.initialize(self.hof_pitchers.n_left, self.hof_pitchers.n_right)
+
         self.hof_pitchers.initialize(self.hof_batters.n_left, self.hof_batters.n_right)
+        self.hof_batters.initialize(self.hof_pitchers.n_left, self.hof_pitchers.n_right, self.hof_pitchers.average_lefty, self.hof_pitchers.average_righty)
 
     @property
     def pitchers(self):
