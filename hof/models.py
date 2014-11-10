@@ -1,9 +1,5 @@
 import xlrd
 
-N_LEFTY_PITCHERS = 6
-N_RIGHTY_PITCHERS = 26
-N_PITCHERS = N_LEFTY_PITCHERS + N_RIGHTY_PITCHERS
-
 class BaseModel(object):
     def __init__(self):
         return
@@ -55,6 +51,8 @@ class BatterModel(HOFModel):
     def __init__(self):
         self.vs_l_ops_plus = 0.0
         self.vs_r_ops_plus = 0.0
+        self.left_weight = 0.5
+        self.right_weight = 0.5
 
     class Meta:
         excel_map = {
@@ -118,7 +116,7 @@ class BatterModel(HOFModel):
 
     @property
     def ops_plus(self):
-        return int((N_LEFTY_PITCHERS*self.vs_l_ops_plus + N_RIGHTY_PITCHERS*self.vs_r_ops_plus) / N_PITCHERS)
+        return int(self.left_weight*self.vs_l_ops_plus + self.right_weight*self.vs_r_ops_plus)
 
     def is_rated_for_position(self, position=0):
         if position == 2:
@@ -147,19 +145,29 @@ class BatterModel(HOFModel):
         return BatterModel.error_rating(self.catcher)
 
 class HOFBatters(object):
-    def __init__(self, sheet, season=None):
+    def __init__(self, sheet, seasons=None, n_left=None, n_right=None):
         key_row = sheet.row(0)
         key_list = [sheet.cell_value(0, col_index) for col_index in xrange(sheet.ncols)]
+
+        self.pichers_left = 1
+        self.pitchers_right = 1
+        if n_left is not None and  n_right is not None:
+            self.pitchers_left = float(n_left)
+            self.pitchers_right = float(n_right)
+        self.n_pitchers = self.pitchers_left + self.pitchers_right
 
         self.batters = []
         for row in xrange(1, sheet.nrows):
             value_list = [sheet.cell_value(row, col_index) for col_index in xrange(sheet.ncols)]
             batter = BatterModel.from_list(key_list, value_list)
+            batter.left_weight = self.pitchers_left/self.n_pitchers
+            batter.right_weight = self.pitchers_right/self.n_pitchers
             self.batters.append(batter)
 
-        if season is not None:
-            self.batters = [b for b in self.batters if b.eligible_season == season]
+        if seasons is not None and len(seasons):
+            self.batters = [b for b in self.batters if b.eligible_season in seasons]
 
+    def initialize(self):
         sum_vs_l_obp = sum_vs_r_obp = 0.0
         sum_vs_l_slg = sum_vs_r_slg = 0.0
         for batter in self.batters:
@@ -258,7 +266,7 @@ class PitcherModel(HOFModel):
         return PitcherModel.error_rating(self.field_rating)
 
 class HOFPitchers(object):
-    def __init__(self, sheet, season=None):
+    def __init__(self, sheet, seasons=None):
         key_row = sheet.row(0)
         key_list = [sheet.cell_value(0, col_index) for col_index in xrange(sheet.ncols)]
 
@@ -268,9 +276,10 @@ class HOFPitchers(object):
             pitcher = PitcherModel.from_list(key_list, value_list)
             self.pitchers.append(pitcher)
 
-        if season is not None:
-            self.pitchers = [p for p in self.pitchers if p.eligible_season == season]
+        if seasons is not None and len(seasons):
+            self.pitchers = [p for p in self.pitchers if p.eligible_season in seasons]
 
+    def initialize(self):
         sum_vs_l_obp = sum_vs_r_obp = 0.0
         sum_vs_l_slg = sum_vs_r_slg = 0.0
         for pitcher in self.pitchers:

@@ -11,7 +11,8 @@ def main():
     workbook = xlrd.open_workbook('2014_HOF.xlsx')
     pitcher_sheet = workbook.sheet_by_name('Pitchers - Strat Card Data')
 
-    hof_pitchers = HOFPitchers(pitcher_sheet, '1')
+    hof_pitchers = HOFPitchers(pitcher_sheet, ['1'])
+    hof_pitchers.initialize()
 
     pitchers = hof_pitchers.pitchers
     pitchers = sorted(pitchers, cmp=ops_plus_compare)
