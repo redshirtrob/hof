@@ -303,3 +303,22 @@ class HOFPitchers(object):
     @property
     def n_right(self):
         return len([p for p in self.pitchers if p.throws == 'R'])
+
+class HOF(object):
+    def __init__(self, workbook_name=None, seasons=None):
+        workbook = xlrd.open_workbook('2014_HOF.xlsx')
+        batter_sheet = workbook.sheet_by_name('Batters - Strat Card Data')
+        pitcher_sheet = workbook.sheet_by_name('Pitchers - Strat Card Data')
+
+        self.hof_pitchers = HOFPitchers(pitcher_sheet, seasons)
+        self.hof_batters = HOFBatters(batter_sheet, ['1'], self.hof_pitchers.n_left, self.hof_pitchers.n_right)
+        self.hof_batters.initialize()
+        self.hof_pitchers.initialize()
+
+    @property
+    def pitchers(self):
+        return self.hof_pitchers.pitchers
+
+    @property
+    def batters(self):
+        return self.hof_batters.batters
