@@ -6,7 +6,7 @@ def ops_plus_compare(this, that):
     return this.ops_plus-that.ops_plus
 
 def main():
-    hof = HOF('2014_HOF.xlsx', ['1'])
+    hof = HOF('2014_HOF.xlsx', seasons=['1', '2'])
 
     pitchers = hof.pitchers
     pitchers = sorted(pitchers, cmp=ops_plus_compare)

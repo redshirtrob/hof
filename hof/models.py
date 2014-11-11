@@ -224,6 +224,25 @@ class HOFBatters(object):
         if seasons is not None and len(seasons):
             self.batters = [b for b in self.batters if b.eligible_season in seasons]
 
+    def _generate_average_batter(self, bats):
+        average_batter = BatterModel()
+        average_batter.__dict__['id'] = bats
+        average_batter.__dict__['name'] = 'Average {}'.format(bats)
+        average_batter.__dict__['bats'] = bats
+        average_batter.__dict__['pos_to_use'] = 'N/A'
+
+        all_batters = [b for b in self.batters if b.bats == bats]
+        rep_batter = all_batters[0]
+        for key in vars(rep_batter):
+            if key.startswith("vs_"):
+                for batter in all_batters:
+                    if key in average_batter.__dict__:
+                        average_batter.__dict__[key] += batter.__dict__[key]
+                    else:
+                        average_batter.__dict__[key] = batter.__dict__[key]
+                average_batter.__dict__[key] /= len(all_batters)
+        return average_batter
+
     def initialize(self, n_left, n_right, average_lefty, average_righty):
         self.n_pitchers_left = float(n_left)
         self.n_pitchers_right = float(n_right)
@@ -257,6 +276,9 @@ class HOFBatters(object):
             vs_r_obp = batter.vs_r_obp_adj(self.average_pitcher_right)
             vs_r_extra_base = batter.vs_r_extra_base_adj(self.average_pitcher_right)
             batter.vs_r_ops_plus = 100 * ((vs_r_obp/self.vs_r_lg_obp) + (vs_r_extra_base/self.vs_r_lg_slg) - 1)
+
+        self.average_lefty = self._generate_average_batter('L')
+        self.average_righty = self._generate_average_batter('R')
 
     @property
     def n_left(self):
@@ -416,12 +438,20 @@ class HOF(object):
         self.hof_batters.initialize(self.hof_pitchers.n_left, self.hof_pitchers.n_right, self.hof_pitchers.average_lefty, self.hof_pitchers.average_righty)
 
     @property
-    def pitchers(self):
-        return self.hof_pitchers.pitchers
-
-    @property
     def batters(self):
         return self.hof_batters.batters
+
+    @property
+    def average_lefty_batter(self):
+        return self.hof_batters.average_lefty
+
+    @property
+    def average_righty_batter(self):
+        return self.hof_batters.average_righty
+
+    @property
+    def pitchers(self):
+        return self.hof_pitchers.pitchers
 
     @property
     def average_lefty_pitcher(self):

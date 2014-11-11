@@ -13,6 +13,8 @@ def main():
     batters = sorted(batters, cmp=ops_plus_compare)
     for batter in batters:
         print batter
+    print hof.average_lefty_batter
+    print hof.average_righty_batter
 
     print "Lefties:  {}".format(hof.hof_batters.n_left)
     print "Righties: {}".format(hof.hof_batters.n_right)
