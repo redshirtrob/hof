@@ -3,10 +3,10 @@
 from hof.models import PitcherModel, HOFPitchers, HOF
 
 def ops_plus_compare(this, that):
-    return this.ops_plus-that.ops_plus
+    return this.ops_plus_adj-that.ops_plus_adj
 
 def main():
-    hof = HOF('2014_HOF.xlsx', seasons=['1', '2'])
+    hof = HOF('2014_HOF.xlsx', seasons=['1'])
 
     pitchers = hof.pitchers
     pitchers = sorted(pitchers, cmp=ops_plus_compare)

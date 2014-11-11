@@ -4,7 +4,7 @@ from hof.models import BatterModel, HOFBatters, \
     PitcherModel, HOFPitchers, HOF
 
 def ops_plus_compare(this, that):
-    return that.ops_plus-this.ops_plus
+    return that.ops_plus_adj-this.ops_plus_adj
 
 def main():
     hof = HOF('2014_HOF.xlsx', seasons=['1'])

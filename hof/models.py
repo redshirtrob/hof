@@ -53,6 +53,7 @@ class BatterModel(HOFModel):
         self.vs_r_ops_plus = 0.0
         self.left_weight = 0.5
         self.right_weight = 0.5
+        self.is_reference = False
 
     class Meta:
         excel_map = {
@@ -112,11 +113,18 @@ class BatterModel(HOFModel):
         }
 
     def __repr__(self):
-        return '{}: {}: {}: {}: {}'.format(self.eligible_season, self.bats, self.name, self.pos_to_use, self.ops_plus)
+        if self.is_reference:
+            return '{}: {}: {}: {}: {}'.format(self.eligible_season, self.bats, self.name, self.pos_to_use, self.ops_plus)
+        else:
+            return '{}: {}: {}: {}: {}'.format(self.eligible_season, self.bats, self.name, self.pos_to_use, self.ops_plus_adj)
 
     @property
     def ops_plus(self):
         return int(self.left_weight*self.vs_l_ops_plus + self.right_weight*self.vs_r_ops_plus)
+
+    @property
+    def ops_plus_adj(self):
+        return int(self.left_weight*self.vs_l_ops_plus_adj + self.right_weight*self.vs_r_ops_plus_adj)
 
     @property
     def vs_l_weak(self):
@@ -224,30 +232,28 @@ class HOFBatters(object):
         if seasons is not None and len(seasons):
             self.batters = [b for b in self.batters if b.eligible_season in seasons]
 
-    def _generate_average_batter(self, bats):
-        average_batter = BatterModel()
-        average_batter.__dict__['id'] = bats
-        average_batter.__dict__['name'] = 'Average {}'.format(bats)
-        average_batter.__dict__['bats'] = bats
-        average_batter.__dict__['pos_to_use'] = 'N/A'
+        self._generate_ops_plus()
+        self.average_lefty = self._generate_average_batter('L')
+        self.average_righty = self._generate_average_batter('R')
 
-        all_batters = [b for b in self.batters if b.bats == bats]
-        rep_batter = all_batters[0]
-        for key in vars(rep_batter):
-            if key.startswith("vs_"):
-                for batter in all_batters:
-                    if key in average_batter.__dict__:
-                        average_batter.__dict__[key] += batter.__dict__[key]
-                    else:
-                        average_batter.__dict__[key] = batter.__dict__[key]
-                average_batter.__dict__[key] /= len(all_batters)
-        return average_batter
+    def _generate_ops_plus(self):
+        sum_vs_l_obp = sum_vs_r_obp = 0.0
+        sum_vs_l_slg = sum_vs_r_slg = 0.0
+        for batter in self.batters:
+            sum_vs_l_obp += batter.vs_l_obp
+            sum_vs_r_obp += batter.vs_r_obp
+            sum_vs_l_slg += batter.vs_l_extra_base
+            sum_vs_r_slg += batter.vs_r_extra_base
+        self.vs_l_lg_obp = sum_vs_l_obp / len(self.batters)
+        self.vs_r_lg_obp = sum_vs_r_obp / len(self.batters)
+        self.vs_l_lg_slg = sum_vs_l_slg / len(self.batters)
+        self.vs_r_lg_slg = sum_vs_r_slg / len(self.batters)
 
-    def initialize(self, n_left, n_right, average_lefty, average_righty):
-        self.n_pitchers_left = float(n_left)
-        self.n_pitchers_right = float(n_right)
-        self.n_pitchers = self.n_pitchers_left + self.n_pitchers_right
+        for batter in self.batters:
+            batter.vs_l_ops_plus = 100 * ((batter.vs_l_obp/self.vs_l_lg_obp) + (batter.vs_l_extra_base/self.vs_l_lg_slg) - 1)
+            batter.vs_r_ops_plus = 100 * ((batter.vs_r_obp/self.vs_r_lg_obp) + (batter.vs_r_extra_base/self.vs_r_lg_slg) - 1)
 
+    def _generate_ops_plus_adj(self, average_lefty, average_righty):
         self.average_pitcher_left = average_lefty
         self.average_pitcher_right = average_righty
 
@@ -270,15 +276,37 @@ class HOFBatters(object):
         for batter in self.batters:
             vs_l_obp = batter.vs_l_obp_adj(self.average_pitcher_left)
             vs_l_extra_base = batter.vs_l_extra_base_adj(self.average_pitcher_left)
-            batter.vs_l_ops_plus = 100 * ((vs_l_obp/self.vs_l_lg_obp) + (vs_l_extra_base/self.vs_l_lg_slg) - 1)
+            batter.vs_l_ops_plus_adj = 100 * ((vs_l_obp/self.vs_l_lg_obp) + (vs_l_extra_base/self.vs_l_lg_slg) - 1)
 
-            # Batter roll
             vs_r_obp = batter.vs_r_obp_adj(self.average_pitcher_right)
             vs_r_extra_base = batter.vs_r_extra_base_adj(self.average_pitcher_right)
-            batter.vs_r_ops_plus = 100 * ((vs_r_obp/self.vs_r_lg_obp) + (vs_r_extra_base/self.vs_r_lg_slg) - 1)
+            batter.vs_r_ops_plus_adj = 100 * ((vs_r_obp/self.vs_r_lg_obp) + (vs_r_extra_base/self.vs_r_lg_slg) - 1)
 
-        self.average_lefty = self._generate_average_batter('L')
-        self.average_righty = self._generate_average_batter('R')
+    def _generate_average_batter(self, bats):
+        average_batter = BatterModel()
+        average_batter.is_reference = True
+        average_batter.__dict__['id'] = bats
+        average_batter.__dict__['name'] = 'Average {}'.format(bats)
+        average_batter.__dict__['bats'] = bats
+        average_batter.__dict__['pos_to_use'] = 'N/A'
+
+        all_batters = [b for b in self.batters if b.bats == bats]
+        rep_batter = all_batters[0]
+        for key in vars(rep_batter):
+            if key.startswith("vs_"):
+                for batter in all_batters:
+                    if key in average_batter.__dict__:
+                        average_batter.__dict__[key] += batter.__dict__[key]
+                    else:
+                        average_batter.__dict__[key] = batter.__dict__[key]
+                average_batter.__dict__[key] /= len(all_batters)
+        return average_batter
+
+    def initialize(self, n_left, n_right, average_lefty, average_righty):
+        self.n_pitchers_left = float(n_left)
+        self.n_pitchers_right = float(n_right)
+        self.n_pitchers = self.n_pitchers_left + self.n_pitchers_right
+        self._generate_ops_plus_adj(average_lefty, average_righty)
 
     @property
     def n_left(self):
@@ -296,6 +324,9 @@ class PitcherModel(HOFModel):
     def __init__(self):
         self.vs_l_ops_plus = 0.0
         self.vs_r_ops_plus = 0.0
+        self.left_weight = 0.5
+        self.right_weight = 0.5
+        self.is_reference = False
 
     class Meta:
         excel_map = {
@@ -349,17 +380,72 @@ class PitcherModel(HOFModel):
         }
 
     def __repr__(self):
-        return '{}: {}: {}: {}'.format(self.eligible_season, self.throws, self.name, self.ops_plus)
+        if self.is_reference:
+            return '{}: {}: {}: {}'.format(self.eligible_season, self.throws, self.name, self.ops_plus)
+        else:
+            return '{}: {}: {}: {}'.format(self.eligible_season, self.throws, self.name, self.ops_plus_adj)
 
     @property
     def ops_plus(self):
-        return int((self.vs_l_ops_plus + self.vs_r_ops_plus) / 2.0)
+        return int(self.left_weight*self.vs_l_ops_plus + self.right_weight*self.vs_r_ops_plus)
+
+    @property
+    def ops_plus_adj(self):
+        return int(self.left_weight*self.vs_l_ops_plus_adj + self.right_weight*self.vs_r_ops_plus_adj)
 
     def field_rating(self):
         return PitcherModel.field_rating(self.field_rating)
 
     def error_rating(self):
         return PitcherModel.error_rating(self.field_rating)
+
+    def vs_l_obp_adj(self, lefty):
+        # Pitcher roll
+        pitcher_vs_l_obp = self.vs_l_obp
+
+        # Batter roll
+        if self.throws == 'L':
+            batter_vs_l_obp = lefty.vs_l_obp
+        else:
+            batter_vs_l_obp = lefty.vs_r_obp
+
+        return (pitcher_vs_l_obp + batter_vs_l_obp) / 2.0
+
+    def vs_r_obp_adj(self, righty):
+        # Pitcher roll
+        pitcher_vs_r_obp = self.vs_r_obp
+
+        # Batter roll
+        if self.throws == 'L':
+            batter_vs_r_obp = righty.vs_l_obp
+        else:
+            batter_vs_r_obp = righty.vs_r_obp
+
+        return (pitcher_vs_r_obp + batter_vs_r_obp) / 2.0
+
+    def vs_l_extra_base_adj(self, lefty):
+        # Pitcher roll
+        pitcher_vs_l_extra_base = self.vs_l_extra_base
+
+        # Batter roll
+        if self.throws == 'L':
+            batter_vs_l_extra_base = lefty.vs_l_extra_base
+        else:
+            batter_vs_l_extra_base = lefty.vs_r_extra_base
+
+        return (pitcher_vs_l_extra_base + batter_vs_l_extra_base) / 2.0
+
+    def vs_r_extra_base_adj(self, righty):
+        # Pitcher roll
+        pitcher_vs_r_extra_base = self.vs_r_extra_base
+
+        # Batter roll
+        if self.throws == 'L':
+            batter_vs_r_extra_base = righty.vs_r_extra_base
+        else:
+            batter_vs_r_extra_base = righty.vs_l_extra_base
+
+        return (pitcher_vs_r_extra_base + batter_vs_r_extra_base) / 2.0
 
 class HOFPitchers(object):
     def __init__(self, sheet, seasons=None):
@@ -375,29 +461,11 @@ class HOFPitchers(object):
         if seasons is not None and len(seasons):
             self.pitchers = [p for p in self.pitchers if p.eligible_season in seasons]
 
-    def _generate_average_pitcher(self, throws):
-        average_pitcher = PitcherModel()
-        average_pitcher.__dict__['id'] = throws
-        average_pitcher.__dict__['name'] = 'Average {}'.format(throws)
-        average_pitcher.__dict__['throws'] = throws
+        self._generate_ops_plus()
+        self.average_lefty = self._generate_average_pitcher('L')
+        self.average_righty = self._generate_average_pitcher('R')
 
-        all_pitchers = [p for p in self.pitchers if p.throws == throws]
-        rep_pitcher = all_pitchers[0]
-        for key in vars(rep_pitcher):
-            if key.startswith("vs_"):
-                for pitcher in all_pitchers:
-                    if key in average_pitcher.__dict__:
-                        average_pitcher.__dict__[key] += pitcher.__dict__[key]
-                    else:
-                        average_pitcher.__dict__[key] = pitcher.__dict__[key]
-                average_pitcher.__dict__[key] /= len(all_pitchers)
-        return average_pitcher
-
-    def initialize(self, n_left, n_right):
-        self.n_batters_left = float(n_left)
-        self.n_batters_right = float(n_right)
-        self.n_batters = self.n_batters_left + self.n_batters_right
-
+    def _generate_ops_plus(self):
         sum_vs_l_obp = sum_vs_r_obp = 0.0
         sum_vs_l_slg = sum_vs_r_slg = 0.0
         for pitcher in self.pitchers:
@@ -414,8 +482,59 @@ class HOFPitchers(object):
             pitcher.vs_l_ops_plus = 100 * ((pitcher.vs_l_obp/self.vs_l_lg_obp) + (pitcher.vs_l_extra_base/self.vs_l_lg_slg) - 1)
             pitcher.vs_r_ops_plus = 100 * ((pitcher.vs_r_obp/self.vs_r_lg_obp) + (pitcher.vs_r_extra_base/self.vs_r_lg_slg) - 1)
 
-        self.average_lefty = self._generate_average_pitcher('L')
-        self.average_righty = self._generate_average_pitcher('R')
+    def _generate_ops_plus_adj(self, average_lefty, average_righty):
+        self.average_batter_left = average_lefty
+        self.average_batter_right = average_righty
+
+        sum_vs_l_obp = sum_vs_r_obp = 0.0
+        sum_vs_l_slg = sum_vs_r_slg = 0.0
+        for pitcher in self.pitchers:
+            pitcher.left_weight = self.n_batters_left/self.n_batters
+            pitcher.right_weight = self.n_batters_right/self.n_batters
+
+            sum_vs_l_obp += pitcher.vs_l_obp_adj(self.average_batter_left)
+            sum_vs_r_obp += pitcher.vs_r_obp_adj(self.average_batter_right)
+            sum_vs_l_slg += pitcher.vs_l_extra_base_adj(self.average_batter_left)
+            sum_vs_r_slg += pitcher.vs_r_extra_base_adj(self.average_batter_right)
+
+        self.vs_l_lg_obp = sum_vs_l_obp / len(self.pitchers)
+        self.vs_r_lg_obp = sum_vs_r_obp / len(self.pitchers)
+        self.vs_l_lg_slg = sum_vs_l_slg / len(self.pitchers)
+        self.vs_r_lg_slg = sum_vs_r_slg / len(self.pitchers)
+
+        for pitcher in self.pitchers:
+            vs_l_obp = pitcher.vs_l_obp_adj(self.average_batter_left)
+            vs_l_extra_base = pitcher.vs_l_extra_base_adj(self.average_batter_left)
+            pitcher.vs_l_ops_plus_adj = 100 * ((vs_l_obp/self.vs_l_lg_obp) + (vs_l_extra_base/self.vs_l_lg_slg) - 1)
+
+            vs_r_obp = pitcher.vs_r_obp_adj(self.average_batter_right)
+            vs_r_extra_base = pitcher.vs_r_extra_base_adj(self.average_batter_right)
+            pitcher.vs_r_ops_plus_adj = 100 * ((vs_r_obp/self.vs_r_lg_obp) + (vs_r_extra_base/self.vs_r_lg_slg) - 1)
+
+    def _generate_average_pitcher(self, throws):
+        average_pitcher = PitcherModel()
+        average_pitcher.is_reference = True
+        average_pitcher.__dict__['id'] = throws
+        average_pitcher.__dict__['name'] = 'Average {}'.format(throws)
+        average_pitcher.__dict__['throws'] = throws
+
+        all_pitchers = [p for p in self.pitchers if p.throws == throws]
+        rep_pitcher = all_pitchers[0]
+        for key in vars(rep_pitcher):
+            if key.startswith("vs_"):
+                for pitcher in all_pitchers:
+                    if key in average_pitcher.__dict__:
+                        average_pitcher.__dict__[key] += pitcher.__dict__[key]
+                    else:
+                        average_pitcher.__dict__[key] = pitcher.__dict__[key]
+                average_pitcher.__dict__[key] /= len(all_pitchers)
+        return average_pitcher
+
+    def initialize(self, n_left, n_right, average_lefty, average_righty):
+        self.n_batters_left = float(n_left)
+        self.n_batters_right = float(n_right)
+        self.n_batters = self.n_batters_left + self.n_batters_right
+        self._generate_ops_plus_adj(average_lefty, average_righty)
 
     @property
     def n_left(self):
@@ -434,7 +553,7 @@ class HOF(object):
         self.hof_pitchers = HOFPitchers(pitcher_sheet, seasons)
         self.hof_batters = HOFBatters(batter_sheet, seasons)
 
-        self.hof_pitchers.initialize(self.hof_batters.n_left, self.hof_batters.n_right)
+        self.hof_pitchers.initialize(self.hof_batters.n_left, self.hof_batters.n_right, self.hof_batters.average_lefty, self.hof_batters.average_righty)
         self.hof_batters.initialize(self.hof_pitchers.n_left, self.hof_pitchers.n_right, self.hof_pitchers.average_lefty, self.hof_pitchers.average_righty)
 
     @property
