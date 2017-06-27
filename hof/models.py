@@ -1,5 +1,12 @@
 import xlrd
 
+class DataSource(object):
+    def __init__(self, workbook, batter_sheet, pitcher_sheet, seasons):
+        self.workbook = workbook
+        self.batter_sheet = batter_sheet
+        self.pitcher_sheet = pitcher_sheet
+        self.seasons = seasons
+
 class BaseModel(object):
     def __init__(self):
         return
@@ -235,18 +242,23 @@ class BatterModel(HOFModel):
         return (batter_vs_r_slg + pitcher_vs_r_slg) / 2.0
 
 class HOFBatters(object):
-    def __init__(self, sheet, seasons=None, players=None):
-        key_row = sheet.row(0)
-        key_list = [sheet.cell_value(0, col_index) for col_index in xrange(sheet.ncols)]
-
+    def __init__(self, data_sources, players=None):
         self.batters = []
-        for row in xrange(1, sheet.nrows):
-            value_list = [sheet.cell_value(row, col_index) for col_index in xrange(sheet.ncols)]
-            batter = BatterModel.from_list(key_list, value_list)
-            self.batters.append(batter)
+        for ds in data_sources:
+            workbook = xlrd.open_workbook(ds.workbook)
+            sheet = workbook.sheet_by_name(ds.batter_sheet)
+            
+            key_row = sheet.row(0)
+            key_list = [sheet.cell_value(0, col_index) for col_index in xrange(sheet.ncols)]
 
-        if seasons is not None and len(seasons):
-            self.batters = [b for b in self.batters if (b.eligible_season in seasons) and (players is None or b.id not in players)]
+            tmp_batters = []
+            for row in xrange(1, sheet.nrows):
+                value_list = [sheet.cell_value(row, col_index) for col_index in xrange(sheet.ncols)]
+                batter = BatterModel.from_list(key_list, value_list)
+                tmp_batters.append(batter)
+
+            if ds.seasons is not None and len(ds.seasons):
+                self.batters += [b for b in tmp_batters if (b.eligible_season in ds.seasons) and (players is None or b.id not in players)]
 
         self._generate_ops_plus()
         self.average_lefty = self._generate_average_batter('L')
@@ -480,23 +492,28 @@ class PitcherModel(HOFModel):
         return (pitcher_vs_r_slg + batter_vs_r_slg) / 2.0
 
 class HOFPitchers(object):
-    def __init__(self, sheet, seasons=None, players=None):
-        key_row = sheet.row(0)
-        key_list = [sheet.cell_value(0, col_index) for col_index in xrange(sheet.ncols)]
-
+    def __init__(self, data_sources, players=None):
         self.pitchers = []
-        for row in xrange(1, sheet.nrows):
-            value_list = [sheet.cell_value(row, col_index) for col_index in xrange(sheet.ncols)]
-            pitcher = PitcherModel.from_list(key_list, value_list)
-            self.pitchers.append(pitcher)
+        for ds in data_sources:
+            workbook = xlrd.open_workbook(ds.workbook)
+            sheet = workbook.sheet_by_name(ds.pitcher_sheet)
+            
+            key_row = sheet.row(0)
+            key_list = [sheet.cell_value(0, col_index) for col_index in xrange(sheet.ncols)]
 
-        if seasons is not None and len(seasons):
-            self.pitchers = [p for p in self.pitchers if (p.eligible_season in seasons) and (players is None or p.id not in players)]
+            tmp_pitchers = []
+            for row in xrange(1, sheet.nrows):
+                value_list = [sheet.cell_value(row, col_index) for col_index in xrange(sheet.ncols)]
+                pitcher = PitcherModel.from_list(key_list, value_list)
+                tmp_pitchers.append(pitcher)
+
+            if ds.seasons is not None and len(ds.seasons):
+                self.pitchers += [p for p in tmp_pitchers if (p.eligible_season in ds.seasons) and (players is None or p.id not in players)]
 
         self._generate_ops_plus()
         self.average_lefty = self._generate_average_pitcher('L')
         self.average_righty = self._generate_average_pitcher('R')
-
+        
     def _generate_ops_plus(self):
         sum_vs_l_obp = sum_vs_r_obp = 0.0
         sum_vs_l_slg = sum_vs_r_slg = 0.0
@@ -579,13 +596,9 @@ class HOFPitchers(object):
         return len([p for p in self.pitchers if p.throws == 'R'])
 
 class HOF(object):
-    def __init__(self, workbook_name=None, batter_sheet=None, pitcher_sheet=None, seasons=None, batters=None, pitchers=None):
-        workbook = xlrd.open_workbook(workbook_name)
-        batter_sheet = workbook.sheet_by_name(batter_sheet) # 'Batters - Strat Card Data'
-        pitcher_sheet = workbook.sheet_by_name(pitcher_sheet) # 'Pitchers - Strat Card Data'
-
-        self.hof_pitchers = HOFPitchers(pitcher_sheet, seasons, pitchers)
-        self.hof_batters = HOFBatters(batter_sheet, seasons, batters)
+    def __init__(self, data_sources=None, batters=None, pitchers=None):
+        self.hof_pitchers = HOFPitchers(data_sources, pitchers)
+        self.hof_batters = HOFBatters(data_sources, batters)
 
         self.hof_pitchers.initialize(self.hof_batters.n_left, self.hof_batters.n_right, self.hof_batters.average_lefty, self.hof_batters.average_righty)
         self.hof_batters.initialize(self.hof_pitchers.n_left, self.hof_pitchers.n_right, self.hof_pitchers.average_lefty, self.hof_pitchers.average_righty)
