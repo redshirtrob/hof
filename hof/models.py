@@ -19,13 +19,17 @@ class BaseModel(object):
 
         kls = cls()
         for key, value in zip(key_list, value_list):
-            kls.__dict__[kls.Meta.excel_map[key]] = value
+            if key in kls.Meta.excel_map:
+                kls.__dict__[kls.Meta.excel_map[key]] = value
         return kls
 
 class HOFModel(BaseModel):
     @property
     def eligible_season(self):
-        return self.id.split('-')[0]
+        if type(self.id) is float:
+            return str(int(self.id)).split('-')[0]
+        else:
+            return self.id.split('-')[0]
 
     @property
     def primary_position(self):
@@ -114,9 +118,9 @@ class BatterModel(HOFModel):
 
     def __repr__(self):
         if self.is_reference:
-            return '{}: {}: {}: {}: {} {}'.format(self.eligible_season, self.bats, self.name, self.pos_to_use, self.ops_plus, self.ballpark_diamonds_adj)
+            return '{}: {}: {}: {}: {} {:6.2f}'.format(self.eligible_season, self.bats, self.name, self.pos_to_use, self.ops_plus, self.ballpark_diamonds_adj)
         else:
-            return '{}: {}: {}: {}: {} {}'.format(self.eligible_season, self.bats, self.name, self.pos_to_use, self.ops_plus_adj, self.ballpark_diamonds_adj)
+            return '{}: {}: {}: {}: {} {:6.2f}'.format(self.eligible_season, self.bats, self.name, self.pos_to_use, self.ops_plus_adj, self.ballpark_diamonds_adj)
 
     @property
     def vs_l_slg(self):
@@ -575,10 +579,10 @@ class HOFPitchers(object):
         return len([p for p in self.pitchers if p.throws == 'R'])
 
 class HOF(object):
-    def __init__(self, workbook_name=None, seasons=None, batters=None, pitchers=None):
-        workbook = xlrd.open_workbook('2014_HOF.xlsx')
-        batter_sheet = workbook.sheet_by_name('Batters - Strat Card Data')
-        pitcher_sheet = workbook.sheet_by_name('Pitchers - Strat Card Data')
+    def __init__(self, workbook_name=None, batter_sheet=None, pitcher_sheet=None, seasons=None, batters=None, pitchers=None):
+        workbook = xlrd.open_workbook(workbook_name)
+        batter_sheet = workbook.sheet_by_name(batter_sheet) # 'Batters - Strat Card Data'
+        pitcher_sheet = workbook.sheet_by_name(pitcher_sheet) # 'Pitchers - Strat Card Data'
 
         self.hof_pitchers = HOFPitchers(pitcher_sheet, seasons, pitchers)
         self.hof_batters = HOFBatters(batter_sheet, seasons, batters)
