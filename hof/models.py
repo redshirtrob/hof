@@ -33,22 +33,7 @@ class BaseModel(object):
 class HOFModel(BaseModel):
     @property
     def eligible_season(self):
-        if type(self.id) is float:
-            return str(int(self.id)).split('-')[0]
-        else:
-            return self.id.split('-')[0]
-
-    @property
-    def primary_position(self):
-        return self.id.split('-')[1]
-
-    @property
-    def first_mlb_season(self):
-        return self.id.split('-')[2]
-
-    @property
-    def alpha_id(self):
-        return self.id.split('-')[3]
+        return int(self.year)
 
     @classmethod
     def field_rating(value):
@@ -68,9 +53,11 @@ class BatterModel(HOFModel):
 
     class Meta:
         excel_map = {
-            'ID' : 'id',
+            'BLB TEAM' : 'id',
+            'YEAR': 'year',
+            'DEBUT YEAR' : 'debut_year',
             'NAME' : 'name',
-            'POS TO USE' : 'pos_to_use',
+            'PRIMARY POS' : 'pos_to_use',
             'BATS' : 'bats',
             'C' : 'catcher',
             '1B' : 'first',
@@ -243,6 +230,9 @@ class BatterModel(HOFModel):
 
 class HOFBatters(object):
     def __init__(self, data_sources, players=None):
+        if players is None:
+            players = []
+            
         self.batters = []
         for ds in data_sources:
             workbook = xlrd.open_workbook(ds.workbook)
@@ -258,7 +248,7 @@ class HOFBatters(object):
                 tmp_batters.append(batter)
 
             if ds.seasons is not None and len(ds.seasons):
-                self.batters += [b for b in tmp_batters if (b.eligible_season in ds.seasons) and (players is None or b.id not in players)]
+                self.batters += [b for b in tmp_batters if (b.eligible_season in ds.seasons) and (b.name not in players)]
 
         self._generate_ops_plus()
         self.average_lefty = self._generate_average_batter('L')
@@ -322,6 +312,7 @@ class HOFBatters(object):
         average_batter = BatterModel()
         average_batter.is_reference = True
         average_batter.__dict__['id'] = bats
+        average_batter.__dict__['year'] = 0
         average_batter.__dict__['name'] = 'Average {}'.format(bats)
         average_batter.__dict__['bats'] = bats
         average_batter.__dict__['pos_to_use'] = 'N/A'
@@ -366,9 +357,11 @@ class PitcherModel(HOFModel):
 
     class Meta:
         excel_map = {
-            'ID' : 'id',
+            'BLB TEAM' : 'id',
+            'YEAR': 'year',
+            'DEBUT YEAR' : 'debut_year',
             'NAME' : 'name',
-            'POS TO USE' : 'pos_to_use',
+            'PRIMARY POS' : 'pos_to_use',
             'THROWS' : 'throws',
             'STARTER IP' : 'starter_ip',
             'RELIEF IP' : 'relief_ip',
@@ -493,6 +486,9 @@ class PitcherModel(HOFModel):
 
 class HOFPitchers(object):
     def __init__(self, data_sources, players=None):
+        if players is None:
+            players = []
+            
         self.pitchers = []
         for ds in data_sources:
             workbook = xlrd.open_workbook(ds.workbook)
@@ -508,7 +504,7 @@ class HOFPitchers(object):
                 tmp_pitchers.append(pitcher)
 
             if ds.seasons is not None and len(ds.seasons):
-                self.pitchers += [p for p in tmp_pitchers if (p.eligible_season in ds.seasons) and (players is None or p.id not in players)]
+                self.pitchers += [p for p in tmp_pitchers if (p.eligible_season in ds.seasons) and (p.name not in players)]
 
         self._generate_ops_plus()
         self.average_lefty = self._generate_average_pitcher('L')
@@ -564,6 +560,7 @@ class HOFPitchers(object):
         average_pitcher = PitcherModel()
         average_pitcher.is_reference = True
         average_pitcher.__dict__['id'] = throws
+        average_pitcher.__dict__['year'] = 0
         average_pitcher.__dict__['name'] = 'Average {}'.format(throws)
         average_pitcher.__dict__['throws'] = throws
 
