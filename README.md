@@ -1,3 +1,10 @@
+## Setup
+Setup the virtual environment
+```
+$ workon hof2
+$ pip install -r requirements.txt
+```
+
 ## Evaluating A Team
 In `parse-batters.py` or `parse-pitchers.py` add a season to the last
 argument of the `DataSource` constructor:
