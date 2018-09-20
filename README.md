@@ -34,3 +34,25 @@ $ for T in VGS HAC MLN SRK MTR MUD CKC MTW; do \
     ./parse-batters.py --pitcher-team=$T | grep AVL; \
 done 
 ```
+
+## Average Batter Ranking
+This will show the average batter ranking for each team.
+```
+$ for T in VGS HAC MLN SRK MTR MUD CKC MTW; do \
+    ./parse-pitchers.py --batter-team=$T | \
+        grep $T | \
+        cut -f 1 -d ' ' | \
+        awk -v T="$T" '{s+=$1} END {print T,s/NR}'; \
+done
+```
+
+## Average Pitcher Ranking
+This will show the average pitcher ranking for each team.
+```
+$ for T in VGS HAC MLN SRK MTR MUD CKC MTW; do \
+    ./parse-batterss.py --pitcher-team=$T | \
+        grep $T | \
+        cut -f 1 -d ' ' | \
+        awk -v T="$T" '{s+=$1} END {print T,s/NR}'; \
+done
+```
