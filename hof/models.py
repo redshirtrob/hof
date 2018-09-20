@@ -111,10 +111,15 @@ class BatterModel(HOFModel):
         }
 
     def __repr__(self):
-        if self.is_reference:
-            return '{}: {}: {}: {}: {} {:6.2f}'.format(self.eligible_season, self.bats, self.name, self.pos_to_use, self.ops_plus, self.ballpark_diamonds_adj)
-        else:
-            return '{}: {}: {}: {}: {} {:6.2f}'.format(self.eligible_season, self.bats, self.name, self.pos_to_use, self.ops_plus_adj, self.ballpark_diamonds_adj)
+        return '{}: {}: {}: {}: {}: {} {:6.2f}'.format(
+            self.id if len(self.id) else "AVL",
+            self.eligible_season,
+            self.bats,
+            self.name,
+            self.pos_to_use,
+            self.ops_plus if self.is_reference else self.ops_plus_adj,
+            self.ballpark_diamonds_adj
+        )
 
     @property
     def vs_l_slg(self):
@@ -229,10 +234,7 @@ class BatterModel(HOFModel):
         return (batter_vs_r_slg + pitcher_vs_r_slg) / 2.0
 
 class HOFBatters(object):
-    def __init__(self, data_sources, players=None):
-        if players is None:
-            players = []
-            
+    def __init__(self, data_sources, batter_team='XXX'):
         self.batters = []
         for ds in data_sources:
             workbook = xlrd.open_workbook(ds.workbook)
@@ -248,7 +250,7 @@ class HOFBatters(object):
                 tmp_batters.append(batter)
 
             if ds.seasons is not None and len(ds.seasons):
-                self.batters += [b for b in tmp_batters if (b.eligible_season in ds.seasons) and (b.name not in players)]
+                self.batters += [b for b in tmp_batters if (b.eligible_season in ds.seasons) and (b.id != batter_team)]
 
         self._generate_ops_plus()
         self.average_lefty = self._generate_average_batter('L')
@@ -409,10 +411,13 @@ class PitcherModel(HOFModel):
         }
 
     def __repr__(self):
-        if self.is_reference:
-            return '{}: {}: {}: {}'.format(self.eligible_season, self.throws, self.name, self.ops_plus)
-        else:
-            return '{}: {}: {}: {}'.format(self.eligible_season, self.throws, self.name, self.ops_plus_adj)
+        return '{}: {}: {}: {}: {}'.format(
+            self.id if len(self.id) else "AVL",
+            self.eligible_season,
+            self.throws,
+            self.name,
+            self.ops_plus if self.is_reference else self.ops_plus_adj
+        )
 
     @property
     def vs_l_slg(self):
@@ -485,10 +490,7 @@ class PitcherModel(HOFModel):
         return (pitcher_vs_r_slg + batter_vs_r_slg) / 2.0
 
 class HOFPitchers(object):
-    def __init__(self, data_sources, players=None):
-        if players is None:
-            players = []
-            
+    def __init__(self, data_sources, pitcher_team='XXX'):
         self.pitchers = []
         for ds in data_sources:
             workbook = xlrd.open_workbook(ds.workbook)
@@ -504,7 +506,7 @@ class HOFPitchers(object):
                 tmp_pitchers.append(pitcher)
 
             if ds.seasons is not None and len(ds.seasons):
-                self.pitchers += [p for p in tmp_pitchers if (p.eligible_season in ds.seasons) and (p.name not in players)]
+                self.pitchers += [p for p in tmp_pitchers if (p.eligible_season in ds.seasons) and (p.id != pitcher_team)]
 
         self._generate_ops_plus()
         self.average_lefty = self._generate_average_pitcher('L')
@@ -593,12 +595,23 @@ class HOFPitchers(object):
         return len([p for p in self.pitchers if p.throws == 'R'])
 
 class HOF(object):
-    def __init__(self, data_sources=None, batters=None, pitchers=None):
-        self.hof_pitchers = HOFPitchers(data_sources, pitchers)
-        self.hof_batters = HOFBatters(data_sources, batters)
+    def __init__(self, data_sources=None, pitcher_team=None, batter_team=None):
+        self.hof_pitchers = HOFPitchers(data_sources, pitcher_team)
+        self.hof_batters = HOFBatters(data_sources, batter_team)
 
-        self.hof_pitchers.initialize(self.hof_batters.n_left, self.hof_batters.n_right, self.hof_batters.average_lefty, self.hof_batters.average_righty)
-        self.hof_batters.initialize(self.hof_pitchers.n_left, self.hof_pitchers.n_right, self.hof_pitchers.average_lefty, self.hof_pitchers.average_righty)
+        self.hof_pitchers.initialize(
+            self.hof_batters.n_left,
+            self.hof_batters.n_right,
+            self.hof_batters.average_lefty,
+            self.hof_batters.average_righty
+        )
+        
+        self.hof_batters.initialize(
+            self.hof_pitchers.n_left,
+            self.hof_pitchers.n_right,
+            self.hof_pitchers.average_lefty,
+            self.hof_pitchers.average_righty
+        )
 
     @property
     def batters(self):
@@ -623,3 +636,5 @@ class HOF(object):
     @property
     def average_righty_pitcher(self):
         return self.hof_pitchers.average_righty
+
+        
