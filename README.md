@@ -43,7 +43,7 @@ $ for T in VGS HAC MLN SRK MTR MUD CKC MTW; do \
         grep $T | \
         cut -f 1 -d ' ' | \
         awk -v T="$T" '{s+=$1} END {print T,s/NR}'; \
-done
+done | sort -g -k 2
 ```
 
 ## Average Pitcher Ranking
@@ -54,5 +54,5 @@ $ for T in VGS HAC MLN SRK MTR MUD CKC MTW; do \
         grep $T | \
         cut -f 1 -d ' ' | \
         awk -v T="$T" '{s+=$1} END {print T,s/NR}'; \
-done
+done | sort -g -k 2
 ```
